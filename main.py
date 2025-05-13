@@ -266,9 +266,11 @@ class BacterialGrowthModel:
 class SimulationGUI:
     """GUI for the bacterial growth simulation"""
     
-    def __init__(self):
+    def __init__(self, initial_params=None):
         self.root = tk.Tk()
-        self.root.title("Bacterial Growth Simulation")
+        self.root.title("Bacterial Growth Simulation Parameters")
+        # Store initial params if provided
+        self.initial_params = initial_params 
         self.create_parameter_ui()
         
     def create_parameter_ui(self):
@@ -277,69 +279,89 @@ class SimulationGUI:
         frame.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
         
         # Default values
-        self.grid_size = tk.StringVar(value="200")
-        self.diffusion_coef = tk.StringVar(value="0.5")
-        self.growth_rate = tk.StringVar(value="0.1")
-        self.nutrient_replenish = tk.StringVar(value="0.01")
-        self.max_time = tk.StringVar(value="100")
-        self.time_step = tk.StringVar(value="0.2")
-        self.dla_threshold = tk.StringVar(value="1.5")
-        self.random_walk_steps = tk.StringVar(value="1000")
+        defaults = {
+            'grid_size': "200", 'diffusion_coef': "0.5", 'growth_rate': "0.1",
+            'nutrient_replenish': "0.01", 'max_time': "100", 'time_step': "0.2",
+            'dla_threshold': "1.5", 'random_walk_steps': "1000",
+            'num_trials': "10" # Added default for MC trials
+        }
         
-        # Parameter inputs
+        # Use initial_params if available, otherwise use defaults
+        current_values = defaults
+        if self.initial_params: 
+            # Ensure all expected keys are present, falling back to default if missing
+            current_values = {key: str(self.initial_params.get(key, defaults[key])) 
+                              for key in defaults}
+
+        # Create StringVars using the determined current values
+        self.grid_size = tk.StringVar(value=current_values['grid_size'])
+        self.diffusion_coef = tk.StringVar(value=current_values['diffusion_coef'])
+        self.growth_rate = tk.StringVar(value=current_values['growth_rate'])
+        self.nutrient_replenish = tk.StringVar(value=current_values['nutrient_replenish'])
+        self.max_time = tk.StringVar(value=current_values['max_time'])
+        self.time_step = tk.StringVar(value=current_values['time_step'])
+        self.dla_threshold = tk.StringVar(value=current_values['dla_threshold'])
+        self.random_walk_steps = tk.StringVar(value=current_values['random_walk_steps'])
+        self.num_trials = tk.StringVar(value=current_values['num_trials']) # Added StringVar for MC trials
+
+        
+        # Parameter inputs layout
         row = 0
         ttk.Label(frame, text="Grid Size (50-500):").grid(row=row, column=0, sticky=tk.W)
         ttk.Entry(frame, textvariable=self.grid_size).grid(row=row, column=1, padx=5, pady=5)
-        
         row += 1
         ttk.Label(frame, text="Diffusion Coefficient (0.1-2.0):").grid(row=row, column=0, sticky=tk.W)
         ttk.Entry(frame, textvariable=self.diffusion_coef).grid(row=row, column=1, padx=5, pady=5)
-        
         row += 1
         ttk.Label(frame, text="Growth Rate (0.01-1.0):").grid(row=row, column=0, sticky=tk.W)
         ttk.Entry(frame, textvariable=self.growth_rate).grid(row=row, column=1, padx=5, pady=5)
-        
         row += 1
         ttk.Label(frame, text="Nutrient Replenishment (0.001-0.1):").grid(row=row, column=0, sticky=tk.W)
         ttk.Entry(frame, textvariable=self.nutrient_replenish).grid(row=row, column=1, padx=5, pady=5)
-        
         row += 1
         ttk.Label(frame, text="Maximum Time (10-1000):").grid(row=row, column=0, sticky=tk.W)
         ttk.Entry(frame, textvariable=self.max_time).grid(row=row, column=1, padx=5, pady=5)
-        
         row += 1
         ttk.Label(frame, text="Time Step (0.01-1.0):").grid(row=row, column=0, sticky=tk.W)
         ttk.Entry(frame, textvariable=self.time_step).grid(row=row, column=1, padx=5, pady=5)
-        
         row += 1
         ttk.Label(frame, text="DLA Threshold (1.0-3.0):").grid(row=row, column=0, sticky=tk.W)
         ttk.Entry(frame, textvariable=self.dla_threshold).grid(row=row, column=1, padx=5, pady=5)
-        
         row += 1
         ttk.Label(frame, text="Random Walk Steps (100-5000):").grid(row=row, column=0, sticky=tk.W)
         ttk.Entry(frame, textvariable=self.random_walk_steps).grid(row=row, column=1, padx=5, pady=5)
         
+        # Add Monte Carlo Trials Input
         row += 1
-        ttk.Button(frame, text="Start Simulation", command=self.start_simulation).grid(row=row, column=0, columnspan=2, pady=20)
+        ttk.Label(frame, text="MC Trials (>=2):").grid(row=row, column=0, sticky=tk.W)
+        ttk.Entry(frame, textvariable=self.num_trials).grid(row=row, column=1, padx=5, pady=5)
+
+        # Buttons Frame for better layout
+        button_frame = ttk.Frame(frame)
+        button_frame.grid(row=row + 1, column=0, columnspan=2, pady=20)
+        
+        ttk.Button(button_frame, text="Start Simulation", command=self.start_simulation).pack(side=tk.LEFT, padx=10)
+        ttk.Button(button_frame, text="Run MC Analysis", command=self.run_mc_analysis).pack(side=tk.LEFT, padx=10) # New Button
         
         # Add explanations for each parameter
-        row += 1
+        row += 2
         explanation_text = """
         Parameter Explanations:
-        - Grid Size: Size of the simulation grid
-        - Diffusion Coefficient: Controls how quickly nutrients diffuse
-        - Growth Rate: Rate of bacterial colony expansion
-        - Nutrient Replenishment: Rate at which nutrients are replenished
-        - Maximum Time: Duration of the simulation
-        - Time Step: Simulation time increment
-        - DLA Threshold: Distance at which particles attach in DLA
-        - Random Walk Steps: Maximum steps for each DLA particle
+        - Grid Size: Size of the simulation grid (pixels)
+        - Diffusion Coefficient: Rate of nutrient spread (sigma for Gaussian filter)
+        - Growth Rate: Base probability factor for cell division
+        - Nutrient Replenishment: Rate nutrients are added back per time step
+        - Maximum Time: Total simulation duration (arbitrary units)
+        - Time Step: Simulation time increment per update cycle
+        - DLA Threshold: Max distance for random walker attachment (pixels)
+        - Random Walk Steps: Max steps before a DLA walker gives up
+        - MC Trials: Number of simulation runs for statistical error analysis
         """
         explanation = ttk.Label(frame, text=explanation_text, justify=tk.LEFT)
         explanation.grid(row=row, column=0, columnspan=2, sticky=tk.W, pady=10)
         
-    def validate_params(self):
-        """Validate input parameters"""
+    def validate_params(self, validate_trials=False): # Added flag
+        """Validate input parameters. Optionally validate num_trials."""
         try:
             params = {
                 'grid_size': int(self.grid_size.get()),
@@ -351,6 +373,8 @@ class SimulationGUI:
                 'dla_threshold': float(self.dla_threshold.get()),
                 'random_walk_steps': int(self.random_walk_steps.get())
             }
+            if validate_trials:
+                params['num_trials'] = int(self.num_trials.get())
             
             # Validate ranges
             if not (50 <= params['grid_size'] <= 500):
@@ -369,6 +393,10 @@ class SimulationGUI:
                 raise ValueError("DLA threshold must be between 1.0 and 3.0")
             if not (100 <= params['random_walk_steps'] <= 5000):
                 raise ValueError("Random walk steps must be between 100 and 5000")
+
+            if validate_trials:
+                if not (params['num_trials'] >= 2):
+                     raise ValueError("Number of MC Trials must be at least 2 for statistics")
                 
             return params
         except ValueError as e:
@@ -376,14 +404,78 @@ class SimulationGUI:
             return None
     
     def start_simulation(self):
-        """Start the simulation with validated parameters"""
-        params = self.validate_params()
+        """Start the simulation visualization""" # Clarified purpose
+        # Validate regular params, not num_trials
+        params = self.validate_params(validate_trials=False) 
         if params:
+            # Add num_trials to params dict just for consistency when returning
+            try: 
+                params['num_trials'] = int(self.num_trials.get())
+            except ValueError:
+                params['num_trials'] = 10 # Default if invalid
+                
             self.root.withdraw()  # Hide parameter window
             visualization = SimulationVisualization(params)
             visualization.run()
+            # If visualization window is closed, exit the GUI
             self.root.destroy()
-    
+
+    def run_mc_analysis(self): # New method for MC Analysis
+        """Run multiple simulation trials and calculate statistics."""
+        # Validate all params, including num_trials
+        params = self.validate_params(validate_trials=True)
+        if not params:
+            return # Validation failed
+
+        num_trials = params['num_trials']
+        results = {
+            'radii': [],
+            'fractal_dims': [],
+            'colony_sizes': [],
+            'msds': []
+        }
+
+        # --- Show progress/info message --- 
+        progress_window = tk.Toplevel(self.root)
+        progress_window.title("MC Analysis Running")
+        progress_label = ttk.Label(progress_window, text=f"Running {num_trials} trials... Please wait.")
+        progress_label.pack(padx=20, pady=20)
+        self.root.update_idletasks() # Ensure window appears
+        
+        try:
+            # --- Run Trials --- 
+            for i in range(num_trials):
+                print(f"Running Trial {i+1}/{num_trials}...") # Console progress
+                model = BacterialGrowthModel(params)
+                # Run simulation loop without visualization
+                while model.update():
+                    pass 
+                # Collect final results
+                results['radii'].append(model.radii[-1])
+                results['fractal_dims'].append(model.fractal_dims[-1])
+                results['colony_sizes'].append(model.colony_sizes[-1])
+                results['msds'].append(model.mean_squared_displacements[-1])
+            
+            # --- Calculate Statistics --- 
+            stats_text = f"Monte Carlo Analysis Results ({num_trials} Trials):\n\n"
+            for key, values in results.items():
+                if values:
+                    mean_val = np.mean(values)
+                    std_dev = np.std(values)
+                    # Standard Error of the Mean = std_dev / sqrt(N)
+                    sem = std_dev / np.sqrt(num_trials) 
+                    stats_text += f"Final {key.replace('_', ' ').title()}: {mean_val:.3f} ± {sem:.3f} (SEM)\n"
+                else:
+                    stats_text += f"Final {key.replace('_', ' ').title()}: No data\n"
+            
+            progress_window.destroy() # Close progress window
+            messagebox.showinfo("MC Analysis Complete", stats_text)
+            
+        except Exception as e:
+            progress_window.destroy()
+            messagebox.showerror("MC Analysis Error", f"An error occurred during analysis: {e}")
+            print(f"Error during MC Analysis: {e}") # Also print to console
+
     def run(self):
         """Run the GUI main loop"""
         self.root.mainloop()
@@ -431,14 +523,14 @@ class SimulationVisualization:
             vmin=0, vmax=1, origin='lower'
         )
         self.ax_bacteria.set_title('Bacterial Colony')
-        self.fig.colorbar(self.im_bacteria, ax=self.ax_bacteria, label='Density')
+        self.cbar_bacteria = self.fig.colorbar(self.im_bacteria, ax=self.ax_bacteria, label='Density')
         
         self.im_nutrients = self.ax_nutrients.imshow(
             self.model.nutrients, cmap='hot', interpolation='nearest', 
             vmin=0, vmax=1, origin='lower'
         )
         self.ax_nutrients.set_title('Nutrient Concentration')
-        self.fig.colorbar(self.im_nutrients, ax=self.ax_nutrients, label='Concentration')
+        self.cbar_nutrients = self.fig.colorbar(self.im_nutrients, ax=self.ax_nutrients, label='Concentration')
         
         # Initialize analysis plots
         self.line_size, = self.ax_size.plot([], [], 'b-')
@@ -466,11 +558,37 @@ class SimulationVisualization:
         self.ax_scaling.set_xlabel('log(Radius)')
         self.ax_scaling.set_ylabel('log(Mass)')
         
-        # Create empty gradient quiver plot
-        self.ax_gradient.set_title('Nutrient Gradient')
+        # --- Initialize Nutrient Gradient Quiver --- 
+        self.ax_gradient.set_title('Nutrient Gradient (Vector Field)')
         self.ax_gradient.set_xlabel('X')
         self.ax_gradient.set_ylabel('Y')
         
+        # Calculate initial downsampled grid and gradient
+        skip = max(1, self.params['grid_size'] // 40)
+        self.X_grid, self.Y_grid = np.meshgrid(np.arange(0, self.params['grid_size'], skip), 
+                                               np.arange(0, self.params['grid_size'], skip))
+        # Compute initial gradient for initialization
+        self.model.compute_nutrient_gradient() # Ensure gradient is calculated once initially
+        U_init = self.model.nutrient_gradient[::skip, ::skip, 0]
+        V_init = self.model.nutrient_gradient[::skip, ::skip, 1]
+        Mag_init = np.sqrt(U_init**2 + V_init**2)
+
+        # Create the quiver plot with initial data and correct number of points
+        self.quiver_gradient = self.ax_gradient.quiver(
+            self.X_grid.ravel(), self.Y_grid.ravel(), # Positions (correct size now)
+            U_init.ravel(), V_init.ravel(),           # Initial vectors
+            Mag_init.ravel(),                         # Initial magnitudes for color
+            cmap='coolwarm', scale=30, pivot='mid'
+        )
+        self.ax_gradient.set_xlim(0, self.params['grid_size'])
+        self.ax_gradient.set_ylim(0, self.params['grid_size'])
+        self.cbar_gradient = self.fig.colorbar(self.quiver_gradient, ax=self.ax_gradient, label='Gradient Magnitude')
+        # Set initial color limits
+        if np.any(Mag_init > 0):
+             self.cbar_gradient.mappable.set_clim(vmin=np.min(Mag_init), vmax=np.max(Mag_init))
+        else:
+             self.cbar_gradient.mappable.set_clim(vmin=0, vmax=1) # Default range
+
         # Statistics text
         self.stats_text = self.ax_stats.text(
             0.05, 0.95, '', transform=self.ax_stats.transAxes,
@@ -496,23 +614,39 @@ class SimulationVisualization:
         
     def setup_animation(self):
         """Set up the animation"""
+        # Calculate the number of frames based on max_time and time_step
+        num_frames = int(self.params['max_time'] / self.params['time_step'])
+        
         self.anim = FuncAnimation(
-            self.fig, self.update_frame, frames=None,
-            interval=50, blit=False, repeat=False
+            self.fig, self.update_frame, 
+            frames=num_frames, # Provide explicit frames
+            interval=50, blit=False, repeat=False,
+            cache_frame_data=False # Explicitly disable caching to avoid potential issues
         )
         
     def update_frame(self, frame):
         """Update animation frame"""
         if self.paused:
-            return
+             # Even if paused, return artists to prevent potential freezing with blit=True later
+            return (self.im_bacteria, self.im_nutrients, self.line_size, self.line_radius, 
+                    self.line_fractal, self.line_msd, self.quiver_gradient)
             
-        # Run multiple steps based on speed
-        steps = max(1, int(self.run_speed))
-        for _ in range(steps):
+        # Run multiple simulation steps based on speed
+        steps_to_run = max(1, int(self.run_speed))
+        simulation_running = True
+        for _ in range(steps_to_run):
             if not self.model.update():
-                self.paused = True
-                break
-                
+                self.paused = True # Stop simulation updates
+                self.pause_button.label.set_text('Resume') # Update button
+                simulation_running = False
+                break # Exit inner loop
+        
+        if not simulation_running and self.model.time >= self.params['max_time']:
+            # If simulation ended naturally, ensure we don't process invalid frame numbers
+             return (self.im_bacteria, self.im_nutrients, self.line_size, self.line_radius, 
+                    self.line_fractal, self.line_msd, self.quiver_gradient)
+
+        # --- Update Plots --- 
         # Update main visualization
         self.im_bacteria.set_array(self.model.bacteria)
         self.im_nutrients.set_array(self.model.nutrients)
@@ -529,7 +663,7 @@ class SimulationVisualization:
         self.line_fractal.set_data(self.model.times, self.model.fractal_dims)
         self.ax_fractal.relim()
         self.ax_fractal.autoscale_view()
-        self.ax_fractal.set_ylim(1.0, 2.5)  # Reasonable range for 2D growth
+        self.ax_fractal.set_ylim(1.0, 2.5) # Reasonable range for 2D growth
         
         self.line_msd.set_data(self.model.times, self.model.mean_squared_displacements)
         self.ax_msd.relim()
@@ -537,60 +671,49 @@ class SimulationVisualization:
         
         # Update mass-radius scaling plot (log-log)
         self.ax_scaling.clear()
-        self.ax_scaling.set_title('Mass-Radius Scaling')
+        self.ax_scaling.set_title('Mass-Radius Scaling (log-log)')
         self.ax_scaling.set_xlabel('log(Radius)')
         self.ax_scaling.set_ylabel('log(Mass)')
-        
-        # Calculate current mass-radius scaling
-        center = self.model.grid_size // 2
-        max_radius = min(center, self.model.grid_size - center)
+        center = self.params['grid_size'] // 2
+        max_radius = min(center, self.params['grid_size'] - center)
         radii = np.linspace(1, max_radius, 20)
         masses = []
-        
         for r in radii:
-            y, x = np.ogrid[-center:self.model.grid_size-center, -center:self.model.grid_size-center]
+            y, x = np.ogrid[-center:self.params['grid_size']-center, -center:self.params['grid_size']-center]
             mask = x*x + y*y <= r*r
             mass = np.sum(self.model.bacteria[mask])
             masses.append(mass)
-            
         masses = np.array(masses)
         valid_points = masses > 0
-        
         if np.sum(valid_points) > 1:
             log_radii = np.log(radii[valid_points])
             log_masses = np.log(masses[valid_points])
-            self.ax_scaling.scatter(log_radii, log_masses, color='blue', s=30, alpha=0.7)
-            
-            # Fit line
+            self.ax_scaling.scatter(log_radii, log_masses, color='blue', s=30, alpha=0.7, label='Data (log(Mass) vs log(Radius))')
             slope, intercept = np.polyfit(log_radii, log_masses, 1)
             fit_line = slope * log_radii + intercept
-            self.ax_scaling.plot(log_radii, fit_line, 'r-', 
-                                label=f'D = {slope:.2f}')
+            self.ax_scaling.plot(log_radii, fit_line, 'r-', label=f'Fit: slope = D ≈ {slope:.2f}')
             self.ax_scaling.legend()
+            self.ax_scaling.grid(True)
+        else:
+             self.ax_scaling.text(0.5, 0.5, 'Not enough data for scaling analysis', horizontalalignment='center', verticalalignment='center', transform=self.ax_scaling.transAxes)
         
-        # Update gradient plot
-        self.ax_gradient.clear()
-        self.ax_gradient.set_title('Nutrient Gradient')
-        
-        # Downsample for better visualization
-        skip = max(1, self.model.grid_size // 40)
-        X, Y = np.meshgrid(np.arange(0, self.model.grid_size, skip), 
-                          np.arange(0, self.model.grid_size, skip))
+        # --- Update gradient plot --- 
+        skip = max(1, self.params['grid_size'] // 40)
         U = self.model.nutrient_gradient[::skip, ::skip, 0]
         V = self.model.nutrient_gradient[::skip, ::skip, 1]
-        
-        # Normalize vector lengths
         magnitude = np.sqrt(U**2 + V**2)
-        max_mag = np.max(magnitude) if np.max(magnitude) > 0 else 1
-        U = U / max_mag
-        V = V / max_mag
         
-        self.ax_gradient.quiver(X, Y, U, V, magnitude, cmap='viridis',
-                               scale=30, pivot='mid')
+        self.quiver_gradient.set_UVC(U.ravel(), V.ravel(), magnitude.ravel())
         
+        if np.any(magnitude > 0):
+             self.quiver_gradient.autoscale()
+             self.cbar_gradient.mappable.set_clim(vmin=np.min(magnitude), vmax=np.max(magnitude))
+        else:
+             self.cbar_gradient.mappable.set_clim(vmin=0, vmax=1)
+
         # Update statistics text
         self.stats_text.set_text(
-            f'Time: {self.model.time:.1f}\n'
+            f'Time: {self.model.time:.1f} / {self.params["max_time"]}\n' # Show max time
             f'Colony Size: {self.model.colony_sizes[-1]}\n'
             f'Radius: {self.model.radii[-1]:.2f}\n'
             f'Fractal Dim.: {self.model.fractal_dims[-1]:.3f}\n'
@@ -598,12 +721,16 @@ class SimulationVisualization:
             f'Diffusion Coef.: {self.model.diffusion_coef:.3f}\n\n'
             f'Physics Models:\n'
             f'- Diffusion Equation\n'
-            f'- Fick\'s Law\n'
-            f'- Laplace\'s Equation\n'
-            f'- Random Walk\n'
-            f'- Fractal Growth\n'
-            f'- DLA'
+            f'- Fick\'s Law (J = -D∇C)\n'
+            f'- Laplace\'s Equation (∇²C)\n'
+            f'- Random Walk (DLA)\n'
+            f'- Fractal Growth (Box Count & Scaling)\n'
+            f'- Harmonic Measure Growth'
         )
+        
+        # Return list of updated artists
+        return (self.im_bacteria, self.im_nutrients, self.line_size, self.line_radius, 
+                self.line_fractal, self.line_msd, self.quiver_gradient, self.stats_text)
     
     def toggle_pause(self, event):
         """Toggle pause/resume simulation"""
@@ -615,15 +742,26 @@ class SimulationVisualization:
         self.run_speed = val
         
     def reset_simulation(self, event):
-        """Reset the simulation"""
-        self.model = BacterialGrowthModel(self.params)
+        """Reset the simulation using the current parameters"""
+        self.model = BacterialGrowthModel(self.params) # Re-initialize model
         self.paused = False
         self.pause_button.label.set_text('Pause')
-        
+        # Don't explicitly call update_frame or draw_idle here
+        # FuncAnimation should handle redrawing the initial state on the next cycle
+        # Or force a single update if FuncAnimation isn't running/restarting smoothly
+        try:
+            # Try to seek to the beginning if animation is active
+            self.anim.frame_seq = self.anim.new_frame_seq()
+        except AttributeError:
+             # If FuncAnimation hasn't started fully or has issues, manually update once
+             self.update_frame(0)
+             self.fig.canvas.draw_idle()
+             
     def return_to_params(self, event):
-        """Return to parameter input screen"""
-        plt.close(self.fig)
-        app = SimulationGUI()
+        """Return to parameter input screen, passing current parameters"""
+        plt.close(self.fig) # Close the plot window
+        # Pass the parameters used for the *current* visualization run
+        app = SimulationGUI(initial_params=self.params) 
         app.run()
     
     def run(self):
@@ -631,5 +769,6 @@ class SimulationVisualization:
         plt.show()
 
 if __name__ == "__main__":
-    app = SimulationGUI()
+    # Start with no initial parameters the first time
+    app = SimulationGUI(initial_params=None) 
     app.run()
