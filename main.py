@@ -10,17 +10,63 @@ class Bacterium:
     def __init__(self, position):
         self.pos = np.array(position, dtype=float)
         self.initial_pos = np.array(position, dtype=float)
+        self.vel = np.zeros(2, dtype=float)  # Add velocity for Langevin dynamics
 
-    def move(self, step_size, grid_shape):
-        dy, dx = np.random.normal(0, step_size, size=2)
-        new_y, new_x = self.pos[0] + dy, self.pos[1] + dx
+    def move(self, step_size, grid_shape, nutrient_field, dt, chemotaxis_strength=1.0, friction=0.1):
+        # Get current position indices
+        yi, xi = int(round(self.pos[0])), int(round(self.pos[1]))
+        yi = np.clip(yi, 0, grid_shape[0] - 1)
+        xi = np.clip(xi, 0, grid_shape[1] - 1)
+        
+        # Calculate nutrient gradient using central differences
+        if yi > 0 and yi < grid_shape[0]-1 and xi > 0 and xi < grid_shape[1]-1:
+            grad_y = (nutrient_field[yi+1, xi] - nutrient_field[yi-1, xi]) / 2
+            grad_x = (nutrient_field[yi, xi+1] - nutrient_field[yi, xi-1]) / 2
+        else:
+            # Use forward/backward differences at boundaries
+            grad_y = (nutrient_field[min(yi+1, grid_shape[0]-1), xi] - 
+                     nutrient_field[max(yi-1, 0), xi]) / 2
+            grad_x = (nutrient_field[yi, min(xi+1, grid_shape[1]-1)] - 
+                     nutrient_field[yi, max(xi-1, 0)]) / 2
+        
+        # Normalize gradient
+        grad_mag = np.sqrt(grad_y**2 + grad_x**2)
+        if grad_mag > 0:
+            grad_y /= grad_mag
+            grad_x /= grad_mag
+        
+        # Langevin equation components
+        # 1. Chemotaxis force (proportional to nutrient gradient)
+        chemotaxis_force = chemotaxis_strength * np.array([grad_y, grad_x])
+        
+        # 2. Friction force
+        friction_force = -friction * self.vel
+        
+        # 3. Random force (thermal noise)
+        random_force = np.random.normal(0, step_size, size=2)
+        
+        # Update velocity using Langevin equation
+        self.vel += (chemotaxis_force + friction_force + random_force) * dt
+        
+        # Update position
+        new_pos = self.pos + self.vel * dt
+        
+        # Apply reflecting boundary conditions
         ny, nx = grid_shape
-        # Reflect boundaries
-        if new_y < 0: new_y = -new_y
-        if new_y >= ny: new_y = 2*(ny - 1) - new_y
-        if new_x < 0: new_x = -new_x
-        if new_x >= nx: new_x = 2*(nx - 1) - new_x
-        self.pos = np.array([new_y, new_x])
+        if new_pos[0] < 0: 
+            new_pos[0] = -new_pos[0]
+            self.vel[0] = -self.vel[0]
+        if new_pos[0] >= ny: 
+            new_pos[0] = 2*(ny - 1) - new_pos[0]
+            self.vel[0] = -self.vel[0]
+        if new_pos[1] < 0: 
+            new_pos[1] = -new_pos[1]
+            self.vel[1] = -self.vel[1]
+        if new_pos[1] >= nx: 
+            new_pos[1] = 2*(nx - 1) - new_pos[1]
+            self.vel[1] = -self.vel[1]
+            
+        self.pos = new_pos
 
     def get_msd(self):
         return np.sum((self.pos - self.initial_pos)**2)
@@ -38,9 +84,11 @@ class BacterialGrowthSim:
         self.death_rate = params['death_rate']
         self.beta = params['beta']
         self.step_size = params['step_size']
+        self.chemotaxis_strength = params.get('chemotaxis_strength', 1.0)
+        self.friction = params.get('friction', 0.1)
 
-        # Nutrient field
-        self.C = np.ones((self.N, self.N)) * params['init_nut']
+        # Initialize nutrient field with random patterns
+        self.C = self.initialize_nutrients(params['init_nut'], params.get('nutrient_pattern', 'random'))
 
         # Place bacteria at center with jitter
         center = (self.N - 1) / 2
@@ -55,6 +103,45 @@ class BacterialGrowthSim:
         self.history_pop = []
         self.history_msd = []
         self.history_avg_nutrient = []
+
+    def initialize_nutrients(self, init_nut, pattern='random'):
+        C = np.zeros((self.N, self.N))
+        
+        if pattern == 'random':
+            # Random spots of nutrients
+            num_spots = np.random.randint(5, 15)
+            for _ in range(num_spots):
+                center_y = np.random.randint(0, self.N)
+                center_x = np.random.randint(0, self.N)
+                radius = np.random.randint(5, 15)
+                y, x = np.ogrid[-center_y:self.N-center_y, -center_x:self.N-center_x]
+                mask = x*x + y*y <= radius*radius
+                C[mask] = init_nut * np.random.uniform(0.5, 1.5)
+                
+        elif pattern == 'stripes':
+            # Alternating stripes of nutrients
+            stripe_width = self.N // 10
+            for i in range(0, self.N, stripe_width*2):
+                C[i:i+stripe_width, :] = init_nut
+                
+        elif pattern == 'gradient':
+            # Radial gradient from center
+            y, x = np.ogrid[-self.N//2:self.N//2, -self.N//2:self.N//2]
+            dist = np.sqrt(x*x + y*y)
+            C = init_nut * np.exp(-dist/(self.N/4))
+            
+        elif pattern == 'checkerboard':
+            # Checkerboard pattern
+            block_size = self.N // 8
+            for i in range(0, self.N, block_size*2):
+                for j in range(0, self.N, block_size*2):
+                    C[i:i+block_size, j:j+block_size] = init_nut
+                    C[i+block_size:i+block_size*2, j+block_size:j+block_size*2] = init_nut
+                    
+        else:  # default to uniform
+            C.fill(init_nut)
+            
+        return C
 
     def laplacian(self, A):
         lap = np.zeros_like(A)
@@ -84,7 +171,8 @@ class BacterialGrowthSim:
         new_bac = []
         N_pop = len(self.bacteria)
         for b in self.bacteria:
-            b.move(self.step_size, (self.N, self.N))
+            b.move(self.step_size, (self.N, self.N), self.C, self.dt, 
+                  self.chemotaxis_strength, self.friction)
             yi, xi = int(round(b.pos[0])), int(round(b.pos[1]))
             yi = np.clip(yi, 0, self.N - 1)
             xi = np.clip(xi, 0, self.N - 1)
@@ -134,7 +222,10 @@ class BacterialApp:
             'beta': 1.0,
             'step_size': 0.5,
             'init_bac': 20,
-            'init_nut': 1.0
+            'init_nut': 1.0,
+            'chemotaxis_strength': 1.0,
+            'friction': 0.1,
+            'nutrient_pattern': 'random'
         }
 
         # Top frame for controls
@@ -169,7 +260,9 @@ class BacterialApp:
             ('beta', 'Consume β', 0.1, 5.0, 0.1),
             ('step_size', 'Step σ', 0.1, 2.0, 0.1),
             ('init_bac', 'Init Bacteria', 1, 100, 1),
-            ('init_nut', 'Init Nutrient', 0.5, 5.0, 0.1)
+            ('init_nut', 'Init Nutrient', 0.5, 5.0, 0.1),
+            ('chemotaxis_strength', 'Chemotaxis χ', 0.0, 5.0, 0.1),
+            ('friction', 'Friction γ', 0.01, 1.0, 0.01)
         ]
         for (key, label, lo, hi, step) in specs2:
             scale = tk.Scale(row2, label=label, from_=lo, to=hi, resolution=step, orient='horizontal', length=120)
@@ -201,6 +294,15 @@ class BacterialApp:
         self.help_btn = tk.Button(btn_frame, text="Help", command=self.show_help)
         self.help_btn.pack(side=tk.LEFT, padx=5)
 
+        # Add nutrient pattern selector
+        pattern_frame = tk.Frame(ctrl_frame)
+        pattern_frame.pack(side=tk.TOP, pady=5)
+        tk.Label(pattern_frame, text="Nutrient Pattern:").pack(side=tk.LEFT, padx=5)
+        self.pattern_var = tk.StringVar(value='random')
+        patterns = ['random', 'stripes', 'gradient', 'checkerboard', 'uniform']
+        pattern_menu = tk.OptionMenu(pattern_frame, self.pattern_var, *patterns)
+        pattern_menu.pack(side=tk.LEFT, padx=5)
+
         # Figure for plots
         self.fig, (self.ax_nutr, self.ax_bac) = plt.subplots(1, 2, figsize=(8, 4))
         self.canvas = FigureCanvasTkAgg(self.fig, master=root)
@@ -220,6 +322,7 @@ class BacterialApp:
                 self.params[key] = int(val)
             else:
                 self.params[key] = float(val)
+        self.params['nutrient_pattern'] = self.pattern_var.get()
 
     def reset(self):
         self.running = False
