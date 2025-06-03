@@ -1,6 +1,105 @@
 # Bacterial Growth Simulation
 
-This project simulates bacterial growth using fractal growth models and diffusion-limited aggregation (DLA). It implements several key physical equations to create a realistic model of how bacterial colonies form complex patterns.
+A Python-based simulation of bacterial growth and nutrient diffusion in a 2D environment. This project models the complex interactions between bacterial populations and their nutrient environment using a combination of differential equations and Monte Carlo methods.
+
+## Features
+
+- **Interactive GUI**: Real-time visualization of bacterial movement and nutrient distribution
+- **Monte Carlo Analysis**: Run multiple simulations to analyze statistical properties
+- **Adjustable Parameters**: Fine-tune simulation parameters through an intuitive interface
+- **Real-time Visualization**: Watch bacterial colonies grow and nutrients diffuse
+
+## Key Parameters
+
+- **Grid Size**: Size of the simulation grid (N×N)
+- **Time Step (dt)**: Simulation time step (smaller values = more accurate but slower)
+- **Diffusion (D)**: Nutrient diffusion coefficient
+- **Growth Rate (r)**: Intrinsic bacterial growth rate
+- **Carrying Capacity (K)**: Maximum sustainable bacterial population
+- **Half-saturation (Ks)**: Nutrient concentration at half-maximal growth rate
+- **Death Rate (γ)**: Probability of bacterial death per time step
+- **Consumption Rate (β)**: Amount of nutrient consumed per bacterium
+- **Step Size (σ)**: Standard deviation of bacterial random walk
+- **Initial Conditions**: Set initial bacterial count and nutrient concentration
+
+## Mathematical Model
+
+The simulation combines several key equations:
+
+1. **Nutrient Diffusion**:
+   ```
+   ∂C/∂t = D∇²C
+   ```
+   where C is nutrient concentration and D is diffusion coefficient
+
+2. **Bacterial Growth**:
+   ```
+   P_grow = r * N * (1 - N/K) * (C/(C + Ks))
+   ```
+   combining logistic growth with Monod kinetics
+
+3. **Nutrient Consumption**:
+   ```
+   C_new = max(C - β*dt, 0)
+   ```
+
+4. **Bacterial Movement**:
+   Random walk with normal distribution:
+   ```
+   dy, dx ~ N(0, σ²)
+   ```
+
+## Requirements
+
+- Python 3.x
+- NumPy
+- Matplotlib
+- Tkinter (usually comes with Python)
+
+## Installation
+
+1. Clone the repository:
+   ```bash
+   git clone [repository-url]
+   cd bacterial-growth-sim
+   ```
+
+2. Create and activate a virtual environment (optional but recommended):
+   ```bash
+   python -m venv venv
+   source venv/bin/activate  # On Windows: venv\Scripts\activate
+   ```
+
+3. Install dependencies:
+   ```bash
+   pip install numpy matplotlib
+   ```
+
+## Usage
+
+Run the simulation:
+```bash
+python main.py
+```
+
+### Controls
+
+- **Start**: Begin the simulation
+- **Pause**: Pause the simulation
+- **Reset**: Reset the simulation with current parameters
+- **Run MC**: Run Monte Carlo analysis with multiple simulations
+- **Help**: View parameter explanations
+
+### Monte Carlo Analysis
+
+The Monte Carlo feature runs multiple independent simulations with the same parameters to analyze statistical properties of the system. Results show:
+- Mean population over time
+- Standard deviation of population
+- Confidence intervals
+
+## Contributing
+
+Feel free to submit issues and enhancement requests!
 
 ## Physics Models Implemented
 
