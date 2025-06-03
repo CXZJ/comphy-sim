@@ -400,10 +400,23 @@ class BacterialApp:
             "Step σ: Standard deviation of random-walk step for bacteria.\n"
             "Init Bacteria: Number of bacteria initially (center of grid).\n"
             "Init Nutrient: Initial uniform nutrient concentration.\n"
+            "Chemotaxis χ: Strength of bacterial movement towards nutrients.\n"
+            "Friction γ: Friction coefficient in Langevin equation.\n"
             "MC runs: Number of Monte Carlo simulations to average over.\n"
+            "\nNutrient Patterns:\n"
+            "- Random: Creates random circular nutrient patches\n"
+            "- Stripes: Alternating horizontal stripes of nutrients\n"
+            "- Gradient: Radial gradient from center\n"
+            "- Checkerboard: Alternating square patches\n"
+            "- Uniform: Even distribution of nutrients\n"
             "\nError Analysis (Monte Carlo):\n"
             "Runs multiple independent simulations with same parameters,\n"
             "computes mean and std of population over time.\n"
+            "\nMathematical Models:\n"
+            "1. Nutrient Diffusion: ∂C/∂t = D∇²C\n"
+            "2. Bacterial Movement: Langevin equation with chemotaxis\n"
+            "3. Growth Rate: Logistic growth with Monod kinetics\n"
+            "4. Nutrient Consumption: Local depletion model\n"
         )
         tk.Label(help_win, text=text, justify=tk.LEFT).pack(padx=10, pady=10)
 
