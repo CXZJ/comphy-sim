@@ -433,40 +433,54 @@ class BacterialApp:
         def mc_task():
             max_steps = int(50 / self.params['dt'])
             all_pops = np.zeros((runs, max_steps))
+            all_msds = np.zeros((runs, max_steps))  # Track MSD values
             for i in range(runs):
                 sim = BacterialGrowthSim(self.params)
                 for t in range(max_steps):
                     sim.step()
                     all_pops[i, t] = len(sim.bacteria)
+                    all_msds[i, t] = sim.history_msd[-1]  # Get latest MSD value
             mean_pop = np.mean(all_pops, axis=0)
             std_pop = np.std(all_pops, axis=0)
+            mean_msd = np.mean(all_msds, axis=0)  # Calculate mean MSD
+            std_msd = np.std(all_msds, axis=0)    # Calculate MSD std
             times = np.arange(max_steps) * self.params['dt']
             
             # Put the data in the queue
-            data_queue.put((times, mean_pop, std_pop))
+            data_queue.put((times, mean_pop, std_pop, mean_msd, std_msd))
 
         def plot_results():
             try:
-                times, mean_pop, std_pop = data_queue.get_nowait()
+                times, mean_pop, std_pop, mean_msd, std_msd = data_queue.get_nowait()
                 
                 # Create new window for Monte Carlo results
                 mc_window = tk.Toplevel(self.root)
                 mc_window.title(f"Monte Carlo Results ({runs} runs)")
                 
-                # Create figure and canvas
-                fig = plt.Figure(figsize=(6, 4))
+                # Create figure with two subplots
+                fig = plt.Figure(figsize=(8, 6))
                 canvas = FigureCanvasTkAgg(fig, master=mc_window)
                 canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
                 
-                # Create plot
-                ax = fig.add_subplot(111)
-                ax.plot(times, mean_pop, '-k', label='Mean Population')
-                ax.fill_between(times, mean_pop-std_pop, mean_pop+std_pop, 
+                # Population plot
+                ax1 = fig.add_subplot(211)
+                ax1.plot(times, mean_pop, '-k', label='Mean Population')
+                ax1.fill_between(times, mean_pop-std_pop, mean_pop+std_pop, 
                               color='gray', alpha=0.5, label='±1 std')
-                ax.set_xlabel("Time")
-                ax.set_ylabel("Population")
-                ax.set_title(f"Monte Carlo ({runs} runs)")
-                ax.legend()
+                ax1.set_xlabel("Time")
+                ax1.set_ylabel("Population")
+                ax1.set_title(f"Population Over Time ({runs} runs)")
+                ax1.legend()
+                
+                # MSD plot
+                ax2 = fig.add_subplot(212)
+                ax2.plot(times, mean_msd, '-b', label='Mean MSD')
+                ax2.fill_between(times, mean_msd-std_msd, mean_msd+std_msd,
+                              color='lightblue', alpha=0.5, label='±1 std')
+                ax2.set_xlabel("Time")
+                ax2.set_ylabel("Mean Squared Displacement")
+                ax2.set_title("MSD Over Time")
+                ax2.legend()
                 
                 fig.tight_layout()
                 canvas.draw()
